@@ -1,3 +1,33 @@
+# ftpd-dsi
+
+WPA2-capable FTP server for the Nintendo DSi, rebuilt against modern
+libnds 2.x / calico / dswifi 2.x.
+
+Fork of [mtheall's ftpd](https://github.com/mtheall/ftpd) via
+[micsthepick's NDS port](https://github.com/micsthepick/ftpdsi).
+
+## DSi usage
+
+- Copy `ftpdsi.nds` to the root of the DSi SD card and launch it in DSi
+  mode (e.g. via Unlaunch or TWiLight Menu++).
+- WiFi connects automatically using the console's saved connections.
+  In DSi mode this includes the **advanced connections 4-6, so WPA/WPA2
+  networks work** (set them up in DSi System Settings > Internet >
+  Advanced Setup). DS-mode connections 1-3 (open/WEP) also work.
+- The server listens on port 5000; the IP is shown on screen once
+  connected. Login is anonymous.
+
+## Build
+
+Install [devkitPro](https://devkitpro.org/wiki/Getting_Started) with the
+`nds-dev` group, then:
+
+    make nds
+
+---
+
+Original readme below.
+
 # ftpd
 
 FTP Server for 3DS/Switch/Linux.
