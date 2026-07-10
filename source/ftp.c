@@ -28,6 +28,7 @@
 #elif defined(_NDS)
 #include <nds.h>
 #include <dswifi9.h>
+#include <wfc.h>
 #include <sys/ioctl.h>
 #define LACKS_POLL
 #define INET_ADDRSTRLEN 16
@@ -2047,6 +2048,58 @@ applet_hook(AppletHookType type,
 }
 #endif
 
+#ifdef _NDS
+/*! print every wifi connection slot stored in NVRAM (mirrors wfcLoadFromNvram) */
+static void
+ftp_dump_nvram_slots(void)
+{
+  unsigned off_slots = g_envExtraInfo->nvram_offset_div8*8 - 4*sizeof(WfcConnSlot);
+
+  if(systemIsTwlMode())
+  {
+    unsigned off_slots_ex = off_slots - 3*sizeof(WfcConnSlotEx);
+    for(unsigned i = 0; i < 3; i++)
+    {
+      static WfcConnSlotEx slot;
+      if(!pmReadNvram(&slot, off_slots_ex + i*sizeof(slot), sizeof(slot)))
+      {
+        console_print("adv slot %u: nvram read err\n", 4+i);
+        continue;
+      }
+      if(slot.base.conn_type == WfcConnType_Invalid)
+      {
+        console_print("adv slot %u: empty\n", 4+i);
+        continue;
+      }
+      bool crc_ok = svcGetCRC16(0, &slot.base, offsetof(WfcConnSlot, crc16)) == slot.base.crc16
+                 && svcGetCRC16(0, &slot.base+1, offsetof(WfcConnSlotEx, crc16) - sizeof(slot.base)) == slot.crc16;
+      console_print("adv slot %u: %.*s type=%02x wpa=%u%s\n", 4+i,
+                    (int)strnlen(slot.base.ssid, 32), slot.base.ssid,
+                    slot.base.conn_type, slot.wpa_mode, crc_ok ? "" : " BADCRC");
+    }
+  }
+  else
+    console_print("DS mode: adv slots 4-6 unavailable\n");
+
+  for(unsigned i = 0; i < 3; i++)
+  {
+    static WfcConnSlot slot;
+    if(!pmReadNvram(&slot, off_slots + i*sizeof(slot), sizeof(slot)))
+    {
+      console_print("slot %u: nvram read err\n", 1+i);
+      continue;
+    }
+    if(slot.conn_type == WfcConnType_Invalid)
+    {
+      console_print("slot %u: empty\n", 1+i);
+      continue;
+    }
+    console_print("slot %u: %.*s type=%02x wep=%u\n", 1+i,
+                  (int)strnlen(slot.ssid, 32), slot.ssid, slot.conn_type, slot.wep_mode);
+  }
+}
+#endif
+
 /*! initialize ftp subsystem */
 int
 ftp_init(void)
@@ -2110,14 +2163,52 @@ ftp_init(void)
     goto soc_fail;
   }
 #elif defined(_NDS)
-  console_print(GREEN "Waiting for wifi...\n" RESET);
+  console_print(GREEN "Wifi init (%s mode)\n" RESET, systemIsTwlMode() ? "DSi" : "DS");
 
-  int ret = Wifi_InitDefault(WFC_CONNECT);
-  if(!ret)
+  if(!wlmgrInitDefault() || !wfcInit())
   {
-    console_print(RED "Wifi_InitDefault: error\n" RESET);
+    console_print(RED "wifi hardware init failed\n" RESET);
     return -1;
   }
+
+  wfcLoadFromNvram();
+
+  /* dump the loaded connection slots so failures are diagnosable */
+  unsigned nslots = wfcGetNumSlots();
+  console_print("%u usable connection slots:\n", nslots);
+  ftp_dump_nvram_slots();
+  if(nslots == 0)
+  {
+    console_print(RED "no valid wifi connections saved\n" RESET);
+    return -1;
+  }
+
+  wfcBeginAutoConnect();
+
+  int prev_status = -1;
+  for(;;)
+  {
+    int status = wfcGetStatus();
+    if(status != prev_status)
+    {
+      static const char *names[] = { "disconnected", "scanning", "connecting", "acquiring IP", "connected" };
+      console_print(YELLOW "wifi: %s\n" RESET, names[status]);
+      prev_status = status;
+    }
+    if(status == WfcStatus_Connected)
+      break;
+    if(status == WfcStatus_Disconnected)
+    {
+      console_print(RED "could not connect to any network\n" RESET);
+      return -1;
+    }
+    threadWaitForVBlank();
+    console_render();
+  }
+
+  WfcConnSlot *active = wfcGetActiveSlot();
+  if(active)
+    console_print(GREEN "connected to %.*s\n" RESET, (int)active->ssid_len, active->ssid);
 
   console_print(GREEN "Ready!\n" RESET);
 #elif defined(__SWITCH__)
