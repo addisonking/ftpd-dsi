@@ -200,6 +200,37 @@ console_set_status(const char *fmt, ...)
  *  @param[in] fmt format string
  *  @param[in] ... format arguments
  */
+#ifdef _NDS
+static FILE *debug_log = NULL;
+
+/*! capture calico/dswifi dietPrint output into the log */
+static void
+diet_print_hook(const char *buf, size_t size)
+{
+  if(!debug_log)
+    return;
+  if(buf)
+    fwrite(buf, 1, size, debug_log);
+  else
+    for(size_t i = 0; i < size; i++)
+      fputc(' ', debug_log);
+  fflush(debug_log);
+}
+
+void
+console_log_init(const char *path)
+{
+  debug_log = fopen(path, "wb");
+  if(debug_log == NULL)
+  {
+    console_print(RED "log open failed: %d\n" RESET, errno);
+    return;
+  }
+  dietPrintSetFunc(diet_print_hook);
+  console_print("logging to %s\n", path);
+}
+#endif
+
 void
 console_print(const char *fmt, ...)
 {
@@ -207,11 +238,24 @@ console_print(const char *fmt, ...)
 
   va_start(ap, fmt);
   vprintf(fmt, ap);
+  va_end(ap);
+#ifdef _NDS
+  if(debug_log)
+  {
+    va_start(ap, fmt);
+    vfprintf(debug_log, fmt, ap);
+    va_end(ap);
+    fflush(debug_log);
+  }
+#endif
 #ifdef ENABLE_LOGGING
   if(!disable_logging)
+  {
+    va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
+    va_end(ap);
+  }
 #endif
-  va_end(ap);
 }
 
 /*! print debug message

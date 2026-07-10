@@ -34,6 +34,10 @@
 
 void console_init(void);
 
+#ifdef _NDS
+void console_log_init(const char *path);
+#endif
+
 __attribute__((format(printf,1,2)))
 void console_set_status(const char *fmt, ...);
 

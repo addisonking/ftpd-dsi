@@ -156,6 +156,8 @@ main(int  argc,
     loop(wait_for_b);
     return 0;
   }
+
+  console_log_init("ftpd-debug.log");
 #endif
 
 #ifdef ENABLE_LOGGING
