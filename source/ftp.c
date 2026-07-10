@@ -555,9 +555,15 @@ ftp_closesocket(int  fd,
 
   /* close socket */
 #ifdef _NDS
-  rc = forceclosesocket(fd);
+  /* graceful close for finished transfers: sgIP flushes the send buffer in
+   * the background. forceclosesocket sends RST and drops unsent data, which
+   * truncated the tail of transferred files. */
+  if(connected)
+    rc = closesocket(fd);
+  else
+    rc = forceclosesocket(fd);
   if(rc != 0)
-    console_print(RED "forceclosesocket: %d %s\n" RESET, errno, strerror(errno));
+    console_print(RED "closesocket: %d %s\n" RESET, errno, strerror(errno));
 #else
   rc = close(fd);
   if(rc != 0)
