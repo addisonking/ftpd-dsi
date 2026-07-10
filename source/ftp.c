@@ -28,9 +28,9 @@
 #elif defined(_NDS)
 #include <nds.h>
 #include <dswifi9.h>
+#include <sys/ioctl.h>
 #define LACKS_POLL
 #define INET_ADDRSTRLEN 16
-#define socklen_t int
 #define gethostid() Wifi_GetIP()
 #define lstat stat
 /* ftpd requires a blocking close() operation with this few sockets */

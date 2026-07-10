@@ -10,3 +10,5 @@ ftpd
 *.pfs0
 *.nacp
 *.nro
+build.nds/
+*.nds
